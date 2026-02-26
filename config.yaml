@@ -1,0 +1,34 @@
+performers:
+  - id: person_a
+    name: "出演者A"
+  - id: person_b
+    name: "出演者B"
+  - id: person_c
+    name: "出演者C"
+
+paths:
+  reference_voices: "data/reference_voices"
+  reference_visuals: "data/reference_visuals"
+  videos: "data/videos"
+  output: "output"
+
+thresholds:
+  voice_similarity: 0.75
+  visual_similarity: 0.60
+  combined_weight_voice: 0.7
+  combined_weight_visual: 0.3
+
+diarization:
+  min_segment_duration: 1.0
+  max_speakers: 3
+
+audio:
+  sample_rate: 16000
+  extract_format: "wav"
+
+visual:
+  frame_interval: 2.0        # フレーム抽出間隔（秒）
+  confidence_threshold: 0.5   # YOLO人物検出の信頼度閾値
+
+output:
+  format: "json"
