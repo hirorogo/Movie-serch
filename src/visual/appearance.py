@@ -1,9 +1,12 @@
 """外見特徴分析モジュール - 髪型・髪色・服装などの視覚的特徴を抽出"""
 
+import logging
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 
 class AppearanceAnalyzer:

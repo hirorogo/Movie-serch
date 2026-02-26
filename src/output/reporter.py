@@ -2,9 +2,12 @@
 
 import csv
 import json
+import logging
 from pathlib import Path
 
 from src.pipeline import VideoAnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 def save_json(results: list[VideoAnalysisResult], output_path: str) -> Path:
@@ -28,6 +31,7 @@ def save_json(results: list[VideoAnalysisResult], output_path: str) -> Path:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+    logger.info("JSON 出力完了: %s", output_path)
     return output_path
 
 
@@ -81,6 +85,7 @@ def save_csv(results: list[VideoAnalysisResult], output_path: str) -> Path:
             row.append(result_dict["summary"])
             writer.writerow(row)
 
+    logger.info("CSV 出力完了: %s", output_path)
     return output_path
 
 

@@ -1,7 +1,10 @@
 """動画からフレーム画像を抽出するモジュール"""
 
+import logging
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def extract_frames(video_path: str, output_dir: str,

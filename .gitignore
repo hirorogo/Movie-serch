@@ -30,6 +30,9 @@ models/
 *.onnx
 *.bin
 
+# Embedding cache
+.cache/
+
 # IDE
 .vscode/
 .idea/

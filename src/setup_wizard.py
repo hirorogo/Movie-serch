@@ -1,11 +1,14 @@
 """セットアップウィザード - 動画から自動で話者を分離し、AIが自動ラベリング → ユーザーは確認するだけ"""
 
+import logging
 import shutil
 from pathlib import Path
 
 import yaml
 import numpy as np
 from resemblyzer import VoiceEncoder, preprocess_wav
+
+logger = logging.getLogger(__name__)
 
 from src.audio.extractor import extract_audio, extract_audio_segment, get_video_duration
 from src.audio.diarizer import Diarizer, SpeakerSegment
@@ -38,6 +41,7 @@ class SetupWizard:
 
         # Step 1: 音声抽出
         print("\n[Step 1/6] 音声を抽出中...")
+        logger.info("音声抽出開始: %s", video_path.name)
         audio_path = extract_audio(
             str(video_path),
             sample_rate=self.config["audio"]["sample_rate"],
@@ -47,6 +51,7 @@ class SetupWizard:
 
         # Step 2: 話者ダイアライゼーション
         print("\n[Step 2/6] 話者を自動分離中...")
+        logger.info("話者ダイアライゼーション開始")
         diarizer = Diarizer(
             max_speakers=self.config["diarization"]["max_speakers"],
             min_segment_duration=self.config["diarization"]["min_segment_duration"],
@@ -521,7 +526,7 @@ class SetupWizard:
                     )
                     sample_paths.append(str(sample_path))
                 except Exception as e:
-                    print(f"  警告: セグメント抽出失敗 ({label}, {seg.start:.1f}-{seg.end:.1f}s): {e}")
+                    logger.warning("セグメント抽出失敗 (%s, %.1f-%.1fs): %s", label, seg.start, seg.end, e)
 
             total_time = sum(s.duration for s in segs)
             result[label] = {
@@ -558,7 +563,7 @@ class SetupWizard:
                     )
                     print(f"  保存: {output_path} ({seg.duration:.1f}秒)")
                 except Exception as e:
-                    print(f"  警告: 保存失敗 {output_path}: {e}")
+                    logger.warning("保存失敗 %s: %s", output_path, e)
 
     def _cleanup(self, sample_dir: Path, audio_path) -> None:
         """一時ファイルを削除"""

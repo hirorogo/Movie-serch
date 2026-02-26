@@ -1,10 +1,13 @@
 """体型・シルエット分析モジュール - YOLO による人物検出と体型特徴抽出"""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

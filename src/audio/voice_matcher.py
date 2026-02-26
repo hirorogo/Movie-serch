@@ -1,22 +1,27 @@
 """声紋照合モジュール - 基準音声と動画音声を比較して出演者を判定"""
 
+import logging
 from pathlib import Path
 
 import numpy as np
 from resemblyzer import VoiceEncoder, preprocess_wav
 
+logger = logging.getLogger(__name__)
+
 
 class VoiceMatcher:
     """声紋ベクトルによる話者照合を行うクラス。"""
 
-    def __init__(self, threshold: float = 0.75):
+    def __init__(self, threshold: float = 0.75, cache=None):
         """
         Args:
             threshold: 声紋一致と判定する最低コサイン類似度
+            cache: EmbeddingCache インスタンス（省略時はキャッシュ無効）
         """
         self.encoder = VoiceEncoder()
         self.threshold = threshold
         self.reference_embeddings: dict[str, np.ndarray] = {}
+        self._cache = cache
 
     def register_speaker(self, speaker_id: str, audio_paths: list[str]) -> None:
         """基準音声から話者の声紋ベクトルを登録する。
@@ -27,11 +32,18 @@ class VoiceMatcher:
         """
         embeddings = []
         for path in audio_paths:
+            cached = self._cache.get(path, prefix="voice") if self._cache else None
+            if cached is not None:
+                embeddings.append(cached)
+                continue
             wav = preprocess_wav(Path(path))
             embedding = self.encoder.embed_utterance(wav)
+            if self._cache:
+                self._cache.put(path, embedding, prefix="voice")
             embeddings.append(embedding)
 
         self.reference_embeddings[speaker_id] = np.mean(embeddings, axis=0)
+        logger.info("話者登録完了: %s (%d ファイル)", speaker_id, len(audio_paths))
 
     def register_speakers_from_dir(self, reference_dir: str) -> None:
         """ディレクトリ構造から全話者を一括登録する。
@@ -55,6 +67,7 @@ class VoiceMatcher:
 
             audio_files = list(speaker_dir.glob("*.wav")) + list(speaker_dir.glob("*.mp3"))
             if not audio_files:
+                logger.debug("音声ファイルなし: %s", speaker_dir)
                 continue
 
             self.register_speaker(speaker_dir.name, [str(f) for f in audio_files])
@@ -71,11 +84,16 @@ class VoiceMatcher:
         if not self.reference_embeddings:
             raise RuntimeError("基準話者が登録されていません。先にregister_speakerを呼んでください。")
 
-        wav = preprocess_wav(Path(audio_path))
-        if len(wav) == 0:
-            return {sid: 0.0 for sid in self.reference_embeddings}
-
-        embedding = self.encoder.embed_utterance(wav)
+        cached = self._cache.get(audio_path, prefix="voice") if self._cache else None
+        if cached is not None:
+            embedding = cached
+        else:
+            wav = preprocess_wav(Path(audio_path))
+            if len(wav) == 0:
+                return {sid: 0.0 for sid in self.reference_embeddings}
+            embedding = self.encoder.embed_utterance(wav)
+            if self._cache:
+                self._cache.put(audio_path, embedding, prefix="voice")
         scores = {}
         for speaker_id, ref_embedding in self.reference_embeddings.items():
             similarity = np.dot(embedding, ref_embedding) / (

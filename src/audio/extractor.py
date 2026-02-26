@@ -1,8 +1,11 @@
 """動画ファイルから音声を抽出するモジュール"""
 
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def extract_audio(video_path: str, output_path: str | None = None,
@@ -38,10 +41,12 @@ def extract_audio(video_path: str, output_path: str | None = None,
         str(output_path)
     ]
 
+    logger.debug("FFmpeg コマンド: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg エラー: {result.stderr}")
 
+    logger.info("音声抽出完了: %s", output_path)
     return output_path
 
 
@@ -84,6 +89,7 @@ def extract_audio_segment(video_path: str, start_sec: float, end_sec: float,
         str(output_path)
     ]
 
+    logger.debug("FFmpeg セグメント抽出: %.1f-%.1f秒", start_sec, end_sec)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg エラー: {result.stderr}")

@@ -1,11 +1,14 @@
 """話者ダイアライゼーション - 音声内の話者交代を検出し時間区間で分離"""
 
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from resemblyzer import VoiceEncoder, preprocess_wav
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,7 +46,8 @@ class Diarizer:
         if use_pyannote:
             try:
                 self._init_pyannote(hf_token)
-            except Exception:
+            except Exception as e:
+                logger.warning("pyannote-audio の初期化に失敗。resemblyzer にフォールバックします: %s", e)
                 self.pipeline = None
 
     def _init_pyannote(self, hf_token: str | None) -> None:
@@ -65,7 +69,9 @@ class Diarizer:
             SpeakerSegment のリスト（時系列順）
         """
         if self.pipeline is not None:
+            logger.info("pyannote-audio でダイアライゼーション実行中...")
             return self._diarize_pyannote(audio_path)
+        logger.info("resemblyzer でダイアライゼーション実行中（フォールバック）...")
         return self._diarize_resemblyzer(audio_path)
 
     def _diarize_pyannote(self, audio_path: str) -> list[SpeakerSegment]:

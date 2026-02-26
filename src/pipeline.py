@@ -1,10 +1,13 @@
 """分析パイプライン - 声紋分析と視覚分析を統合して出演者を判定"""
 
+import logging
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from src.audio.extractor import extract_audio, extract_audio_segment, get_video_duration
 from src.audio.voice_matcher import VoiceMatcher
@@ -142,46 +145,58 @@ class AnalysisPipeline:
         try:
             result.duration = get_video_duration(video_path)
         except Exception as e:
+            logger.error("動画情報取得エラー: %s", e)
             result.errors.append(f"動画情報取得エラー: {e}")
             return result
 
         # Step 1: 音声抽出
+        logger.info("[Step 1/5] 音声抽出中: %s", video_path_obj.name)
+        audio_path = None
         try:
             audio_path = extract_audio(
                 video_path,
                 sample_rate=self.config["audio"]["sample_rate"],
             )
-        except Exception as e:
-            result.errors.append(f"音声抽出エラー: {e}")
-            return result
 
-        # Step 2: 話者ダイアライゼーション
-        try:
-            segments = self.diarizer.diarize(str(audio_path))
-        except Exception as e:
-            result.errors.append(f"ダイアライゼーションエラー: {e}")
-            segments = []
-
-        # Step 3: 声紋照合
-        voice_results = self._analyze_voice(str(audio_path), video_path, segments)
-
-        # Step 4: 視覚分析（有効な場合）
-        visual_results = {}
-        if self.visual_enabled:
+            # Step 2: 話者ダイアライゼーション
+            logger.info("[Step 2/5] 話者ダイアライゼーション中...")
             try:
-                visual_results = self._analyze_visual(video_path)
+                segments = self.diarizer.diarize(str(audio_path))
             except Exception as e:
-                result.errors.append(f"視覚分析エラー: {e}")
+                logger.error("ダイアライゼーションエラー: %s", e)
+                result.errors.append(f"ダイアライゼーションエラー: {e}")
+                segments = []
 
-        # Step 5: 統合判定
-        result.performers = self._combine_results(voice_results, visual_results)
-        result.detected_count = sum(1 for p in result.performers if p.detected)
+            # Step 3: 声紋照合
+            logger.info("[Step 3/5] 声紋照合中... (%d セグメント)", len(segments))
+            voice_results = self._analyze_voice(str(audio_path), video_path, segments)
 
-        # 一時ファイルのクリーンアップ
-        try:
-            Path(audio_path).unlink(missing_ok=True)
-        except Exception:
-            pass
+            # Step 4: 視覚分析（有効な場合）
+            visual_results = {}
+            if self.visual_enabled:
+                logger.info("[Step 4/5] 視覚分析中...")
+                try:
+                    visual_results = self._analyze_visual(video_path)
+                except Exception as e:
+                    logger.error("視覚分析エラー: %s", e)
+                    result.errors.append(f"視覚分析エラー: {e}")
+
+            # Step 5: 統合判定
+            logger.info("[Step 5/5] 統合判定中...")
+            result.performers = self._combine_results(voice_results, visual_results)
+            result.detected_count = sum(1 for p in result.performers if p.detected)
+            logger.info("解析完了: %s → %d名検出", video_path_obj.name, result.detected_count)
+
+        except Exception as e:
+            logger.error("音声抽出エラー: %s", e)
+            result.errors.append(f"音声抽出エラー: {e}")
+        finally:
+            # 一時ファイルのクリーンアップ（例外発生時も確実に実行）
+            if audio_path is not None:
+                try:
+                    Path(audio_path).unlink(missing_ok=True)
+                except Exception:
+                    logger.debug("一時ファイル削除失敗: %s", audio_path)
 
         return result
 
@@ -318,26 +333,63 @@ class AnalysisPipeline:
 
         return results
 
-    def analyze_batch(self, video_dir: str) -> list[VideoAnalysisResult]:
+    def analyze_batch(self, video_dir: str,
+                      skip_analyzed: bool = False,
+                      output_dir: str | None = None) -> list[VideoAnalysisResult]:
         """フォルダ内の全動画を一括解析する。
 
         Args:
             video_dir: 動画フォルダのパス
+            skip_analyzed: 既に結果が存在する動画をスキップするか
+            output_dir: 結果保存先（skip_analyzed 判定にも使用）
 
         Returns:
             VideoAnalysisResult のリスト
         """
-        video_dir = Path(video_dir)
+        video_dir_path = Path(video_dir)
         extensions = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"}
 
         videos = [
-            f for f in sorted(video_dir.iterdir())
+            f for f in sorted(video_dir_path.iterdir())
             if f.suffix.lower() in extensions
         ]
 
+        if not videos:
+            logger.warning("動画が見つかりません: %s", video_dir_path)
+            return []
+
+        # 既に解析済みの動画を特定（スキップ用）
+        analyzed_names: set[str] = set()
+        if skip_analyzed and output_dir:
+            analyzed_names = self._load_analyzed_names(output_dir)
+            logger.info("解析済み: %d 件", len(analyzed_names))
+
         results = []
-        for video in videos:
+        total = len(videos)
+        skipped = 0
+        for i, video in enumerate(videos, 1):
+            if video.name in analyzed_names:
+                logger.info("[%d/%d] スキップ（解析済み）: %s", i, total, video.name)
+                skipped += 1
+                continue
+            logger.info("[%d/%d] 解析開始: %s", i, total, video.name)
             result = self.analyze_video(str(video))
             results.append(result)
 
+        logger.info("バッチ完了: %d 件解析, %d 件スキップ, 合計 %d 件",
+                     len(results), skipped, total)
         return results
+
+    @staticmethod
+    def _load_analyzed_names(output_dir: str) -> set[str]:
+        """既存の結果 JSON から解析済みの動画名を取得する。"""
+        import json
+        results_file = Path(output_dir) / "results.json"
+        if not results_file.exists():
+            return set()
+        try:
+            with open(results_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return {r["video"] for r in data.get("results", [])}
+        except (json.JSONDecodeError, KeyError):
+            return set()
