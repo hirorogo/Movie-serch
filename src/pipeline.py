@@ -9,10 +9,6 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-from src.audio.extractor import extract_audio, extract_audio_segment, get_video_duration
-from src.audio.voice_matcher import VoiceMatcher
-from src.audio.diarizer import Diarizer
-
 
 @dataclass
 class PerformerResult:
@@ -75,6 +71,9 @@ class AnalysisPipeline:
     """声紋 + 視覚分析を統合する解析パイプライン"""
 
     def __init__(self, config_path: str = "config.yaml"):
+        from src.audio.voice_matcher import VoiceMatcher
+        from src.audio.diarizer import Diarizer
+
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
 
@@ -135,6 +134,8 @@ class AnalysisPipeline:
         Returns:
             VideoAnalysisResult
         """
+        from src.audio.extractor import extract_audio, get_video_duration
+
         video_path_obj = Path(video_path)
         result = VideoAnalysisResult(
             video_path=str(video_path_obj),
@@ -203,6 +204,8 @@ class AnalysisPipeline:
     def _analyze_voice(self, audio_path: str, video_path: str,
                        segments: list) -> dict[str, dict]:
         """声紋分析を実行"""
+        from src.audio.extractor import extract_audio_segment
+
         if not segments:
             # セグメントがない場合、全体を対象にする
             scores = self.voice_matcher.compare(audio_path)
