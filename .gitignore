@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Data files (large)
+data/videos/*
+data/reference_voices/*/*.wav
+data/reference_voices/*/*.mp3
+data/reference_visuals/*/*.jpg
+data/reference_visuals/*/*.png
+!data/**/.gitkeep
+
+# Output
+output/*
+!output/.gitkeep
+
+# Model cache
+models/
+*.pt
+*.onnx
+*.bin
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env

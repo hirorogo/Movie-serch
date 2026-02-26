@@ -1,0 +1,28 @@
+# Audio processing
+pydub>=0.25.1
+librosa>=0.10.1
+soundfile>=0.12.1
+
+# Speaker embedding & verification
+resemblyzer>=0.1.3
+
+# Speaker diarization
+pyannote.audio>=3.1.1
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Visual analysis
+ultralytics>=8.1.0
+open-clip-torch>=2.24.0
+Pillow>=10.0.0
+
+# Data processing
+numpy>=1.24.0
+scipy>=1.11.0
+pyyaml>=6.0.1
+
+# CLI
+click>=8.1.7
+
+# Testing
+pytest>=7.4.0
