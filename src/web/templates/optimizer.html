@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Threshold Optimizer{% endblock %}
+{% block page_title %}Threshold Optimizer{% endblock %}
+
+{% block content %}
+<div class="panel" id="loading-panel">
+    <p>Analyzing score distribution...</p>
+</div>
+
+<div id="optimizer-content" style="display:none">
+    <div class="cards" id="threshold-cards"></div>
+
+    <div class="grid-2">
+        <div class="panel">
+            <h3>Voice Score Distribution</h3>
+            <canvas id="opt-voice-chart"></canvas>
+        </div>
+        <div class="panel">
+            <h3>Visual Score Distribution</h3>
+            <canvas id="opt-visual-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Recommendation</h3>
+        <div id="recommendation"></div>
+    </div>
+
+    <div class="panel">
+        <h3>Apply New Thresholds</h3>
+        <form id="threshold-form" class="form-inline">
+            <div class="form-group">
+                <label for="voice-threshold">Voice Threshold</label>
+                <input type="number" id="voice-threshold" step="0.01" min="0" max="1">
+            </div>
+            <div class="form-group">
+                <label for="visual-threshold">Visual Threshold</label>
+                <input type="number" id="visual-threshold" step="0.01" min="0" max="1">
+            </div>
+            <button type="submit" class="btn">Apply</button>
+        </form>
+        <div id="apply-result"></div>
+    </div>
+</div>
+
+<div class="panel" id="error-panel" style="display:none">
+    <p class="error" id="error-message"></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const data = await fetchJSON('/api/optimize');
+
+        if (data.error) {
+            showError(data.error);
+            return;
+        }
+
+        document.getElementById('loading-panel').style.display = 'none';
+        document.getElementById('optimizer-content').style.display = 'block';
+
+        // Threshold cards
+        document.getElementById('threshold-cards').innerHTML =
+            `<div class="card"><div class="card-label">Current Voice</div><div class="card-value">${data.current_voice}</div></div>` +
+            `<div class="card"><div class="card-label">Recommended Voice</div><div class="card-value highlight">${data.recommended_voice}</div></div>` +
+            `<div class="card"><div class="card-label">Current Visual</div><div class="card-value">${data.current_visual}</div></div>` +
+            `<div class="card"><div class="card-label">Recommended Visual</div><div class="card-value highlight">${data.recommended_visual}</div></div>`;
+
+        // Voice distribution chart with threshold lines
+        renderOptChart('opt-voice-chart', data.distribution?.voice, data.current_voice, data.recommended_voice, '#3b82f6');
+        renderOptChart('opt-visual-chart', data.distribution?.visual, data.current_visual, data.recommended_visual, '#10b981');
+
+        // Recommendation
+        const confClass = data.confidence === 'high' ? 'success' : data.confidence === 'medium' ? 'warning' : 'error';
+        document.getElementById('recommendation').innerHTML =
+            `<p class="${confClass}"><strong>Confidence: ${data.confidence}</strong></p>` +
+            `<p>${data.message}</p>` +
+            `<p>Data points: ${data.data_points}</p>` +
+            `<p>Voice change: ${data.voice_change > 0 ? '+' : ''}${data.voice_change}</p>` +
+            `<p>Visual change: ${data.visual_change > 0 ? '+' : ''}${data.visual_change}</p>`;
+
+        // Pre-fill form
+        document.getElementById('voice-threshold').value = data.recommended_voice;
+        document.getElementById('visual-threshold').value = data.recommended_visual;
+
+    } catch (e) {
+        showError('Failed to load optimization data: ' + e.message);
+    }
+
+    // Form submission
+    document.getElementById('threshold-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const voice = parseFloat(document.getElementById('voice-threshold').value);
+        const visual = parseFloat(document.getElementById('visual-threshold').value);
+
+        const resp = await fetch('/api/config/thresholds', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ voice_similarity: voice, visual_similarity: visual }),
+        });
+        const result = await resp.json();
+
+        if (result.status === 'ok') {
+            document.getElementById('apply-result').innerHTML =
+                '<p class="success">Thresholds updated successfully! Re-analyze videos to apply.</p>';
+        } else {
+            document.getElementById('apply-result').innerHTML =
+                `<p class="error">Error: ${result.error}</p>`;
+        }
+    });
+});
+
+function showError(msg) {
+    document.getElementById('loading-panel').style.display = 'none';
+    document.getElementById('error-panel').style.display = 'block';
+    document.getElementById('error-message').textContent = msg;
+}
+
+function renderOptChart(canvasId, distData, currentTh, recommendedTh, color) {
+    if (!distData || !distData.histogram || distData.count === 0) return;
+
+    const annotation = {
+        type: 'line',
+        borderColor: '#ef4444',
+        borderWidth: 2,
+        borderDash: [6, 6],
+        label: { display: true, content: `Current: ${currentTh}`, position: 'start' },
+        scaleID: 'x',
+        value: distData.histogram.bins.findIndex(b => b >= currentTh),
+    };
+
+    const annotation2 = {
+        type: 'line',
+        borderColor: '#10b981',
+        borderWidth: 2,
+        label: { display: true, content: `Recommended: ${recommendedTh}`, position: 'end' },
+        scaleID: 'x',
+        value: distData.histogram.bins.findIndex(b => b >= recommendedTh),
+    };
+
+    new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: {
+            labels: distData.histogram.bins.map(b => b.toFixed(2)),
+            datasets: [{
+                label: 'Count',
+                data: distData.histogram.counts,
+                backgroundColor: color + '88',
+                borderColor: color,
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+                subtitle: {
+                    display: true,
+                    text: `Mean: ${distData.mean} | Std: ${distData.std} | N=${distData.count}`,
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

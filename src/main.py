@@ -232,6 +232,33 @@ def _save_incremental(results, output_dir, fmt, existing_names):
 
 
 @cli.command()
+@click.option("--config", "-c", default="config.yaml",
+              help="設定ファイルのパス")
+@click.option("--output", "-o", default="output",
+              help="解析結果ディレクトリ")
+@click.option("--host", default="127.0.0.1",
+              help="バインドするホスト")
+@click.option("--port", "-p", default=5000, type=int,
+              help="ポート番号")
+def web(config, output, host, port):
+    """Web ダッシュボードを起動する。
+
+    ブラウザから解析結果の統計・分析・閾値最適化を行えます。
+
+    \b
+    使い方:
+      python src/main.py web
+      python src/main.py web --port 8080
+    """
+    from src.web.app import create_app
+
+    app = create_app(config_path=config, output_dir=output)
+    click.echo(f"\nWeb ダッシュボードを起動中: http://{host}:{port}")
+    click.echo("停止するには Ctrl+C を押してください。\n")
+    app.run(host=host, port=port, debug=False)
+
+
+@cli.command()
 @click.option("--video", "-v", type=click.Path(exists=True), required=True,
               help="テスト対象の動画ファイル")
 @click.option("--config", "-c", default="config.yaml",
