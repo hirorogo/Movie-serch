@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="cards" id="overview-cards">
+    <div class="card">
+        <div class="card-label">Total Videos</div>
+        <div class="card-value" id="total-videos">-</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Total Detections</div>
+        <div class="card-value" id="total-detections">-</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Avg / Video</div>
+        <div class="card-value" id="avg-detected">-</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Errors</div>
+        <div class="card-value" id="error-count">-</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="panel">
+        <h3>Detection Rate by Performer</h3>
+        <canvas id="performer-chart"></canvas>
+    </div>
+    <div class="panel">
+        <h3>Detection Matrix</h3>
+        <div id="matrix-container" class="table-scroll"></div>
+    </div>
+</div>
+
+<div class="panel">
+    <h3>Current Thresholds</h3>
+    <div class="threshold-display" id="threshold-info"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const [overview, matrix] = await Promise.all([
+        fetchJSON('/api/overview'),
+        fetchJSON('/api/matrix'),
+    ]);
+
+    document.getElementById('total-videos').textContent = overview.total_videos;
+    document.getElementById('total-detections').textContent = overview.total_performers_detected;
+    document.getElementById('avg-detected').textContent = overview.avg_detected_per_video;
+    document.getElementById('error-count').textContent = overview.videos_with_errors;
+
+    // Threshold info
+    const th = overview.thresholds || {};
+    document.getElementById('threshold-info').innerHTML =
+        `<span class="tag">Voice: <strong>${th.voice_similarity || 0.75}</strong></span>` +
+        `<span class="tag">Visual: <strong>${th.visual_similarity || 0.60}</strong></span>` +
+        `<span class="tag">Weight Voice: <strong>${th.combined_weight_voice || 0.7}</strong></span>` +
+        `<span class="tag">Weight Visual: <strong>${th.combined_weight_visual || 0.3}</strong></span>`;
+
+    // Performer chart
+    const stats = overview.performer_stats || {};
+    const labels = Object.keys(stats);
+    const rates = labels.map(k => stats[k].detection_rate * 100);
+    if (labels.length > 0) {
+        new Chart(document.getElementById('performer-chart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Detection Rate (%)',
+                    data: rates,
+                    backgroundColor: COLORS.slice(0, labels.length),
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        });
+    }
+
+    // Matrix table
+    if (matrix.videos && matrix.videos.length > 0) {
+        const pids = matrix.performer_ids;
+        let html = '<table><thead><tr><th>Video</th>';
+        pids.forEach(pid => {
+            const name = matrix.videos[0][pid]?.name || pid;
+            html += `<th>${name}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        matrix.videos.forEach(row => {
+            html += `<tr><td class="video-name">${row.video}</td>`;
+            pids.forEach(pid => {
+                const d = row[pid] || {};
+                const cls = d.detected ? 'detected' : 'not-detected';
+                const icon = d.detected ? '&#9675;' : '&#10005;';
+                html += `<td class="${cls}" title="Score: ${(d.combined_score || 0).toFixed(3)}">${icon}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('matrix-container').innerHTML = html;
+    } else {
+        document.getElementById('matrix-container').innerHTML = '<p class="muted">No data</p>';
+    }
+});
+</script>
+{% endblock %}

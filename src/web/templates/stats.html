@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Statistics{% endblock %}
+{% block page_title %}Statistics & Analysis{% endblock %}
+
+{% block content %}
+<div class="grid-2">
+    <div class="panel">
+        <h3>Score Distribution (Voice)</h3>
+        <canvas id="voice-dist-chart"></canvas>
+    </div>
+    <div class="panel">
+        <h3>Score Distribution (Visual)</h3>
+        <canvas id="visual-dist-chart"></canvas>
+    </div>
+</div>
+
+<div class="panel">
+    <h3>Score Trends</h3>
+    <canvas id="trend-chart"></canvas>
+</div>
+
+<div class="grid-2">
+    <div class="panel">
+        <h3>Performer Statistics</h3>
+        <div id="performer-stats" class="table-scroll"></div>
+    </div>
+    <div class="panel">
+        <h3>Confidence Analysis</h3>
+        <div class="cards" id="confidence-cards"></div>
+        <canvas id="confidence-chart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const [performers, trends, confidence, optData] = await Promise.all([
+        fetchJSON('/api/performers'),
+        fetchJSON('/api/trends'),
+        fetchJSON('/api/confidence'),
+        fetchJSON('/api/optimize').catch(() => null),
+    ]);
+
+    // Score distributions from optimizer data
+    if (optData && optData.distribution) {
+        renderHistogram('voice-dist-chart', optData.distribution.voice, 'Voice Scores', '#3b82f6');
+        renderHistogram('visual-dist-chart', optData.distribution.visual, 'Visual Scores', '#10b981');
+    }
+
+    // Performer stats table
+    const pids = Object.keys(performers);
+    if (pids.length > 0) {
+        let html = '<table><thead><tr><th>Performer</th><th>Detection Rate</th><th>Voice Avg</th>' +
+            '<th>Voice Std</th><th>Visual Avg</th><th>Combined Avg</th></tr></thead><tbody>';
+        pids.forEach(pid => {
+            const p = performers[pid];
+            html += `<tr><td>${p.name}</td>` +
+                `<td>${(p.detection_rate * 100).toFixed(1)}%</td>` +
+                `<td>${p.voice.mean.toFixed(4)}</td>` +
+                `<td>${p.voice.std.toFixed(4)}</td>` +
+                `<td>${p.visual.mean.toFixed(4)}</td>` +
+                `<td>${p.combined.mean.toFixed(4)}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('performer-stats').innerHTML = html;
+    }
+
+    // Confidence analysis
+    const summary = confidence.summary || {};
+    document.getElementById('confidence-cards').innerHTML =
+        `<div class="card card-sm"><div class="card-label">High Confidence</div><div class="card-value">${confidence.high_confidence?.count || 0}</div></div>` +
+        `<div class="card card-sm"><div class="card-label">Medium</div><div class="card-value">${confidence.medium_confidence?.count || 0}</div></div>` +
+        `<div class="card card-sm"><div class="card-label">Borderline</div><div class="card-value">${confidence.borderline?.count || 0}</div></div>`;
+
+    new Chart(document.getElementById('confidence-chart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['High (>=0.85)', 'Medium (0.65-0.85)', 'Low (<0.65)'],
+            datasets: [{
+                data: [
+                    confidence.high_confidence?.count || 0,
+                    confidence.medium_confidence?.count || 0,
+                    confidence.low_confidence?.count || 0,
+                ],
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+            }]
+        },
+        options: { responsive: true }
+    });
+
+    // Trend chart
+    const pidList = Object.keys(trends);
+    if (pidList.length > 0) {
+        const datasets = pidList.map((pid, i) => ({
+            label: pid,
+            data: trends[pid].map(t => ({ x: t.index, y: t.combined_score })),
+            borderColor: COLORS[i % COLORS.length],
+            fill: false,
+            tension: 0.3,
+        }));
+
+        new Chart(document.getElementById('trend-chart'), {
+            type: 'line',
+            data: { datasets: datasets },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: 'Video Index' } },
+                    y: { beginAtZero: true, max: 1.0, title: { display: true, text: 'Combined Score' } },
+                },
+            }
+        });
+    }
+});
+
+function renderHistogram(canvasId, distData, label, color) {
+    if (!distData || !distData.histogram || distData.count === 0) {
+        const ctx = document.getElementById(canvasId);
+        ctx.parentElement.innerHTML += '<p class="muted">No data available</p>';
+        return;
+    }
+    new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: {
+            labels: distData.histogram.bins.map(b => b.toFixed(2)),
+            datasets: [{
+                label: label,
+                data: distData.histogram.counts,
+                backgroundColor: color + '88',
+                borderColor: color,
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+                subtitle: {
+                    display: true,
+                    text: `Mean: ${distData.mean} | Std: ${distData.std} | Median: ${distData.median}`,
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

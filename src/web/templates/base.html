@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Movie-serch{% endblock %} - Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>Movie-serch</h2>
+            <span class="subtitle">AI Analysis Dashboard</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="{% if request.path == '/' %}active{% endif %}">
+                <span class="icon">&#9632;</span> Dashboard</a></li>
+            <li><a href="/results" class="{% if request.path == '/results' %}active{% endif %}">
+                <span class="icon">&#9654;</span> Results</a></li>
+            <li><a href="/stats" class="{% if request.path == '/stats' %}active{% endif %}">
+                <span class="icon">&#9650;</span> Stats</a></li>
+            <li><a href="/optimizer" class="{% if request.path == '/optimizer' %}active{% endif %}">
+                <span class="icon">&#9881;</span> Optimizer</a></li>
+        </ul>
+    </nav>
+    <main class="content">
+        <header class="page-header">
+            <h1>{% block page_title %}{% endblock %}</h1>
+        </header>
+        <div class="page-body">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

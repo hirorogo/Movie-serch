@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Results{% endblock %}
+{% block page_title %}Analysis Results{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>All Results</h3>
+        <span class="badge" id="result-count">-</span>
+    </div>
+    <div class="table-scroll" id="results-table"></div>
+</div>
+
+<div class="panel" id="detail-panel" style="display:none">
+    <h3>Detail: <span id="detail-video-name"></span></h3>
+    <div class="grid-2">
+        <div>
+            <h4>Scores</h4>
+            <canvas id="detail-chart"></canvas>
+        </div>
+        <div>
+            <h4>Info</h4>
+            <div id="detail-info"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let detailChart = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const data = await fetchJSON('/api/results');
+    const results = data.results || [];
+    document.getElementById('result-count').textContent = results.length;
+
+    if (results.length === 0) {
+        document.getElementById('results-table').innerHTML = '<p class="muted">No results yet.</p>';
+        return;
+    }
+
+    // Collect performer IDs
+    const pids = new Set();
+    results.forEach(r => Object.keys(r.performers || {}).forEach(p => pids.add(p)));
+    const pidArr = [...pids].sort();
+
+    let html = '<table><thead><tr><th>Video</th><th>Duration</th>';
+    pidArr.forEach(pid => html += `<th>${pid}</th>`);
+    html += '<th>Detected</th><th>Action</th></tr></thead><tbody>';
+
+    results.forEach(r => {
+        html += `<tr><td class="video-name">${r.video}</td><td>${r.duration || '-'}</td>`;
+        pidArr.forEach(pid => {
+            const p = (r.performers || {})[pid] || {};
+            const cls = p.detected ? 'detected' : 'not-detected';
+            const score = (p.combined_score || 0).toFixed(3);
+            html += `<td class="${cls}">${score}</td>`;
+        });
+        html += `<td>${r.detected_count || 0}</td>`;
+        html += `<td><button class="btn-sm" onclick="showDetail('${r.video}')">Detail</button></td>`;
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('results-table').innerHTML = html;
+});
+
+async function showDetail(videoName) {
+    const data = await fetchJSON(`/api/results/${encodeURIComponent(videoName)}`);
+    document.getElementById('detail-panel').style.display = 'block';
+    document.getElementById('detail-video-name').textContent = videoName;
+
+    const performers = data.performers || {};
+    const labels = [];
+    const voiceScores = [];
+    const visualScores = [];
+    const combinedScores = [];
+    let infoHTML = `<p><strong>Duration:</strong> ${data.duration || '-'}</p>`;
+    infoHTML += `<p><strong>Detected:</strong> ${data.detected_count || 0}</p>`;
+    infoHTML += `<p><strong>Summary:</strong> ${data.summary || '-'}</p>`;
+
+    if (data.errors && data.errors.length > 0) {
+        infoHTML += `<p class="error"><strong>Errors:</strong> ${data.errors.join(', ')}</p>`;
+    }
+
+    infoHTML += '<table class="compact"><thead><tr><th>Performer</th><th>Voice</th><th>Visual</th><th>Combined</th><th>Speaking</th></tr></thead><tbody>';
+
+    Object.entries(performers).forEach(([pid, p]) => {
+        labels.push(p.name || pid);
+        voiceScores.push(p.voice_score || 0);
+        visualScores.push(p.visual_score || 0);
+        combinedScores.push(p.combined_score || 0);
+        const cls = p.detected ? 'detected' : '';
+        infoHTML += `<tr class="${cls}"><td>${p.name || pid}</td><td>${(p.voice_score || 0).toFixed(4)}</td>` +
+            `<td>${(p.visual_score || 0).toFixed(4)}</td><td>${(p.combined_score || 0).toFixed(4)}</td>` +
+            `<td>${p.speaking_time || '0:00'}</td></tr>`;
+    });
+    infoHTML += '</tbody></table>';
+    document.getElementById('detail-info').innerHTML = infoHTML;
+
+    if (detailChart) detailChart.destroy();
+    detailChart = new Chart(document.getElementById('detail-chart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Voice', data: voiceScores, backgroundColor: '#3b82f6' },
+                { label: 'Visual', data: visualScores, backgroundColor: '#10b981' },
+                { label: 'Combined', data: combinedScores, backgroundColor: '#f59e0b' },
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 1.0 } } }
+    });
+
+    document.getElementById('detail-panel').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+{% endblock %}
