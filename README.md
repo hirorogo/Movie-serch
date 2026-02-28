@@ -827,6 +827,21 @@ python -c "import torch; print(torch.cuda.is_available())"
 - BGM や環境音が大きい場合、精度が低下します
 - `config.yaml` の `voice_similarity` 閾値を調整してみてください
 
+
+## Community Forks
+
+有志によって開発されている派生プロジェクトです。特定のユースケースに合わせた機能拡張が行われています。
+
+- **[Movie-serch-Automatic](https://github.com/serkenn/Movie-serch-Automatic)**
+  本ツールをベースに、外部ソースからの動画取得から解析、結果の記録までを全自動化するパイプライン機能を追加したフォーク版です。
+  - **主な追加機能:**
+    - Telegram や Magnet リンクからの動画自動ダウンロード機能
+    - Google Sheets への解析結果の自動同期
+    - Fantia の投稿IDベースでの自動メディア整理
+    - VPN/Proxy 利用時の IP・通信量監視機能
+    - Ingest（取得）管理や CSV プレビューを含む Web UI の拡張
+
+
 ## ライセンス
 
 このプロジェクトは個人利用を目的としています。
