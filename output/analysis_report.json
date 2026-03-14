@@ -1,0 +1,61 @@
+{
+  "video": "Fantia-posts-3507115.mp4",
+  "duration_seconds": 2510.6,
+  "duration_formatted": "41:50",
+  "total_segments": 578,
+  "speakers": {
+    "speaker_0": {
+      "segments": 218,
+      "total_speaking_time": "19m10s",
+      "total_speaking_seconds": 1150.5,
+      "speaking_ratio": "45.8%",
+      "first_appearance": "0:09",
+      "last_appearance": "41:38",
+      "pitch": {
+        "mean_pitch": 281.6,
+        "median_pitch": 280.4,
+        "voice_type": "HIGH"
+      }
+    },
+    "speaker_1": {
+      "segments": 90,
+      "total_speaking_time": "4m18s",
+      "total_speaking_seconds": 258.0,
+      "speaking_ratio": "10.3%",
+      "first_appearance": "0:03",
+      "last_appearance": "38:30",
+      "pitch": {
+        "mean_pitch": 252.9,
+        "median_pitch": 265.4,
+        "voice_type": "HIGH"
+      }
+    },
+    "speaker_2": {
+      "segments": 270,
+      "total_speaking_time": "15m5s",
+      "total_speaking_seconds": 905.2,
+      "speaking_ratio": "36.1%",
+      "first_appearance": "0:02",
+      "last_appearance": "41:01",
+      "pitch": {
+        "mean_pitch": 228.9,
+        "median_pitch": 256.4,
+        "voice_type": "HIGH"
+      }
+    }
+  },
+  "cross_speaker_similarity": {
+    "speaker_0_vs_speaker_1": 0.9058,
+    "speaker_0_vs_speaker_2": 0.9646,
+    "speaker_1_vs_speaker_2": 0.9433
+  },
+  "analysis_notes": [
+    "pyannote-audio unavailable (no HF token), used resemblyzer fallback for diarization",
+    "All 3 speakers detected as high-pitched female voices",
+    "High cross-speaker similarity (0.90-0.96) indicates voices are similar in timbre",
+    "No reference voices registered yet - these are raw speaker clusters",
+    "speaker_0 has highest pitch (281.6Hz) and most speaking time (19m10s)",
+    "speaker_1 has least speaking time (4m18s)",
+    "speaker_2 has moderate speaking time (15m5s) and lowest pitch (228.9Hz)"
+  ]
+}
